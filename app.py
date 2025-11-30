@@ -317,214 +317,301 @@ def build_recommendation(answers: dict) -> dict:
 
 
 # -----------------------------
-# UI
+# Wizard state
 # -----------------------------
 st.title("Blis Measurement Wizard")
 st.caption(
     "Internal Blis measurement concierge – designed with love for Sales & Analysts."
 )
-
 st.markdown("---")
 
-# Market selection
-market = st.selectbox(
-    "1. Which market is this campaign in?",
-    list(MARKETS.keys()),
-    index=2,  # default to India
-)
-market_info = MARKETS[market]
-cur_symbol = market_info["currency_symbol"] or ""
-cur_name = market_info["currency_name"]
+# step + answers live in session_state
+if "step" not in st.session_state:
+    st.session_state.step = 1
 
-st.info(
-    f"Currency will be treated as **{cur_name}** "
-    f"{'(' + cur_symbol + ')' if cur_symbol else ''} for budget bands."
-)
+if "answers" not in st.session_state:
+    st.session_state.answers = {
+        "market": "India",
+        "objective": "Brand awareness / consideration",
+        "ids": "Not sure",
+        "budget_label": "",
+        "budget_level": "Medium",
+        "impressions_label": "",
+        "impressions_level": "Medium",
+        "duration": "2–4 weeks",
+        "offline_data": "Not sure",
+        "control": "Not sure",
+        "expectation": "Directional understanding / story is fine",
+        "other_media": "Not sure",
+        "show_analyst_view": False,
+    }
 
-# Objective
-objective = st.radio(
-    "2. What is the **primary campaign objective**?",
-    [
-        "Brand awareness / consideration",
-        "Footfall / store visits",
-        "Sales / conversions",
-        "App installs / app usage",
-        "Other / I'm not sure",
-    ],
-)
+answers = st.session_state.answers
 
-# IDs
-ids = st.radio(
-    "3. Do you have IDs / device identifiers / log-level data available for this campaign?",
-    ["Yes", "No", "Not sure"],
-)
 
-# Budget
-budget_labels = get_budget_band_labels(market_info)
-budget_label = st.selectbox(
-    f"4. Rough **media budget** in {cur_name} (choose the closest band)",
-    budget_labels,
-)
-budget_level = get_budget_level(budget_label)
+def go_next():
+    if st.session_state.step < 11:
+        st.session_state.step += 1
 
-# Impressions
-impressions_label = st.selectbox(
-    "5. Rough **planned impressions** for this campaign?",
-    [
+
+def go_back():
+    if st.session_state.step > 1:
+        st.session_state.step -= 1
+
+
+step = st.session_state.step
+st.write(f"Step {step} of 11")
+
+# -----------------------------
+# Step-by-step questions
+# -----------------------------
+if step == 1:
+    market = st.selectbox(
+        "Which market is this campaign in?",
+        list(MARKETS.keys()),
+        index=list(MARKETS.keys()).index(answers["market"]),
+    )
+    answers["market"] = market
+    market_info = MARKETS[market]
+    cur_symbol = market_info["currency_symbol"] or ""
+    cur_name = market_info["currency_name"]
+    st.info(
+        f"Currency will be treated as **{cur_name}** "
+        f"{'(' + cur_symbol + ')' if cur_symbol else ''} for budget bands."
+    )
+
+elif step == 2:
+    objective = st.radio(
+        "What is the primary campaign objective?",
+        [
+            "Brand awareness / consideration",
+            "Footfall / store visits",
+            "Sales / conversions",
+            "App installs / app usage",
+            "Other / I'm not sure",
+        ],
+        index=[
+            "Brand awareness / consideration",
+            "Footfall / store visits",
+            "Sales / conversions",
+            "App installs / app usage",
+            "Other / I'm not sure",
+        ].index(answers["objective"]),
+    )
+    answers["objective"] = objective
+
+elif step == 3:
+    ids = st.radio(
+        "Do you have IDs / device identifiers / log-level data available for this campaign?",
+        ["Yes", "No", "Not sure"],
+        index=["Yes", "No", "Not sure"].index(answers["ids"]),
+    )
+    answers["ids"] = ids
+
+elif step == 4:
+    market_info = MARKETS[answers["market"]]
+    budget_labels = get_budget_band_labels(market_info)
+    if answers["budget_label"] and answers["budget_label"] in budget_labels:
+        default_index = budget_labels.index(answers["budget_label"])
+    else:
+        default_index = 1
+    budget_label = st.selectbox(
+        f"Rough media budget in {market_info['currency_name']} (choose the closest band)",
+        budget_labels,
+        index=default_index,
+    )
+    answers["budget_label"] = budget_label
+    answers["budget_level"] = get_budget_level(budget_label)
+
+elif step == 5:
+    options = [
         "< 100k",
         "100k–500k",
         "500k–1M",
         "1M+",
-    ],
-)
-impressions_level = get_impression_level(impressions_label)
+    ]
+    if answers["impressions_label"] and answers["impressions_label"] in options:
+        default_index = options.index(answers["impressions_label"])
+    else:
+        default_index = 1
+    impressions_label = st.selectbox(
+        "Rough planned impressions for this campaign?",
+        options,
+        index=default_index,
+    )
+    answers["impressions_label"] = impressions_label
+    answers["impressions_level"] = get_impression_level(impressions_label)
 
-# Duration
-duration = st.selectbox(
-    "6. Expected **flight duration**?",
-    [
+elif step == 6:
+    options = [
         "< 1 week",
         "1–2 weeks",
         "2–4 weeks",
         "4+ weeks",
-    ],
-)
-
-# Offline / sales / store data
-offline_data = st.radio(
-    "7. Do you have **store visit / sales / app analytics data** that we can link to media?",
-    ["Yes", "No", "Not sure"],
-)
-
-# Control group
-control = st.radio(
-    "8. Can we design a **control group** (holdout geo / audience) for this activity?",
-    ["Yes", "No", "Not sure"],
-)
-
-# Expectation-setting
-expectation = st.radio(
-    "9. What is the client expecting from measurement?",
-    [
-        "Formal, statistically robust lift study",
-        "Directional understanding / story is fine",
-        "Not sure yet",
-    ],
-)
-
-# Other media overlap
-other_media = st.radio(
-    "10. Is there heavy other media activity in the same period/markets that we cannot cleanly control for (TV, OOH, big digital bursts)?",
-    ["Yes", "No", "Not sure"],
-)
-
-# Analyst mode toggle
-show_analyst_view = st.checkbox(
-    "Show analyst detail (method names, caveats)", value=False
-)
-
-st.markdown("---")
-
-# -----------------------------
-# Run engine on click
-# -----------------------------
-if st.button("Get measurement recommendation"):
-    answers = {
-        "market": market,
-        "objective": objective,
-        "ids": ids,
-        "budget_level": budget_level,
-        "impressions_level": impressions_level,
-        "duration": duration,
-        "offline_data": offline_data,
-        "control": control,
-        "expectation": expectation,
-        "other_media": other_media,
-    }
-
-    # Feasibility status
-    score = compute_feasibility_score(answers)
-    status_text, status_type = map_score_to_status(score)
-
-    if status_type == "success":
-        st.success(f"Feasibility: {status_text}")
-    elif status_type == "warning":
-        st.warning(f"Feasibility: {status_text}")
-    else:
-        st.error(f"Feasibility: {status_text}")
-
-    # Main recommendation
-    rec = build_recommendation(answers)
-
-    st.subheader("Recommended measurement approach")
-    st.success(rec["primary"])
-
-    if show_analyst_view and rec["methods"]:
-        st.subheader("Suggested study types (for analysts)")
-        for m in rec["methods"]:
-            st.markdown(f"- {m}")
-
-    if rec["details"]:
-        st.subheader("How to frame this")
-        for d in rec["details"]:
-            st.markdown(f"- {d}")
-
-    if rec["risks"]:
-        st.subheader("Risks / limitations to flag")
-        for r in rec["risks"]:
-            st.markdown(f"- {r}")
-
-    if rec["alternatives"]:
-        st.subheader("Fallback options / backup plans")
-        for a in rec["alternatives"]:
-            st.markdown(f"- {a}")
-
-    # -------- Email / deck summary --------
-    st.markdown("---")
-    st.subheader("Email / deck summary")
-
-    summary_lines = [
-        "Blis Measurement Recommendation",
-        "-------------------------------",
-        f"Market: {answers['market']}",
-        f"Objective: {objective}",
-        f"Client expectation: {expectation}",
-        f"Feasibility: {status_text}",
-        "",
-        "Recommended approach:",
-        f"- {rec['primary']}",
     ]
-
-    if rec["methods"]:
-        summary_lines.append("")
-        summary_lines.append("Suggested study types:")
-        for m in rec["methods"]:
-            summary_lines.append(f"- {m}")
-
-    if rec["risks"]:
-        summary_lines.append("")
-        summary_lines.append("Key risks / limitations:")
-        for r in rec["risks"]:
-            summary_lines.append(f"- {r}")
-
-    if rec["alternatives"]:
-        summary_lines.append("")
-        summary_lines.append("Fallback options / backup plans:")
-        for a in rec["alternatives"]:
-            summary_lines.append(f"- {a}")
-
-    summary_text = "\n".join(summary_lines)
-
-    st.code(summary_text, language="text")
-    st.download_button(
-        "Download summary as .txt",
-        data=summary_text,
-        file_name="blis_measurement_recommendation.txt",
+    default_index = options.index(answers["duration"]) if answers["duration"] in options else 2
+    duration = st.selectbox(
+        "Expected flight duration?",
+        options,
+        index=default_index,
     )
+    answers["duration"] = duration
 
-    st.caption(
-        "This is a v3 rules-based assistant. Analysts can fine-tune the rules over time "
-        "by editing the compute_feasibility_score() and build_recommendation() functions."
+elif step == 7:
+    offline_data = st.radio(
+        "Do you have store visit / sales / app analytics data that we can link to media?",
+        ["Yes", "No", "Not sure"],
+        index=["Yes", "No", "Not sure"].index(answers["offline_data"]),
     )
-else:
-    st.info("Fill in the answers above and click **Get measurement recommendation**.")
+    answers["offline_data"] = offline_data
+
+elif step == 8:
+    control = st.radio(
+        "Can we design a control group (holdout geo / audience) for this activity?",
+        ["Yes", "No", "Not sure"],
+        index=["Yes", "No", "Not sure"].index(answers["control"]),
+    )
+    answers["control"] = control
+
+elif step == 9:
+    expectation = st.radio(
+        "What is the client expecting from measurement?",
+        [
+            "Formal, statistically robust lift study",
+            "Directional understanding / story is fine",
+            "Not sure yet",
+        ],
+        index=[
+            "Formal, statistically robust lift study",
+            "Directional understanding / story is fine",
+            "Not sure yet",
+        ].index(answers["expectation"]),
+    )
+    answers["expectation"] = expectation
+
+elif step == 10:
+    other_media = st.radio(
+        "Is there heavy other media activity in the same period/markets that we cannot cleanly control for (TV, OOH, big digital bursts)?",
+        ["Yes", "No", "Not sure"],
+        index=["Yes", "No", "Not sure"].index(answers["other_media"]),
+    )
+    answers["other_media"] = other_media
+
+elif step == 11:
+    show_analyst_view = st.checkbox(
+        "Show analyst detail (method names, caveats)",
+        value=answers.get("show_analyst_view", False),
+    )
+    answers["show_analyst_view"] = show_analyst_view
+
+    st.markdown("---")
+    if st.button("Get measurement recommendation"):
+        final_answers = {
+            "market": answers["market"],
+            "objective": answers["objective"],
+            "ids": answers["ids"],
+            "budget_level": answers["budget_level"],
+            "impressions_level": answers["impressions_level"],
+            "duration": answers["duration"],
+            "offline_data": answers["offline_data"],
+            "control": answers["control"],
+            "expectation": answers["expectation"],
+            "other_media": answers["other_media"],
+        }
+
+        # Feasibility status
+        score = compute_feasibility_score(final_answers)
+        status_text, status_type = map_score_to_status(score)
+
+        if status_type == "success":
+            st.success(f"Feasibility: {status_text}")
+        elif status_type == "warning":
+            st.warning(f"Feasibility: {status_text}")
+        else:
+            st.error(f"Feasibility: {status_text}")
+
+        # Main recommendation
+        rec = build_recommendation(final_answers)
+
+        st.subheader("Recommended measurement approach")
+        st.success(rec["primary"])
+
+        if show_analyst_view and rec["methods"]:
+            st.subheader("Suggested study types (for analysts)")
+            for m in rec["methods"]:
+                st.markdown(f"- {m}")
+
+        if rec["details"]:
+            st.subheader("How to frame this")
+            for d in rec["details"]:
+                st.markdown(f"- {d}")
+
+        if rec["risks"]:
+            st.subheader("Risks / limitations to flag")
+            for r in rec["risks"]:
+                st.markdown(f"- {r}")
+
+        if rec["alternatives"]:
+            st.subheader("Fallback options / backup plans")
+            for a in rec["alternatives"]:
+                st.markdown(f"- {a}")
+
+        # -------- Email / deck summary --------
+        st.markdown("---")
+        st.subheader("Email / deck summary")
+
+        summary_lines = [
+            "Blis Measurement Recommendation",
+            "-------------------------------",
+            f"Market: {final_answers['market']}",
+            f"Objective: {final_answers['objective']}",
+            f"Client expectation: {final_answers['expectation']}",
+            f"Feasibility: {status_text}",
+            "",
+            "Recommended approach:",
+            f"- {rec['primary']}",
+        ]
+
+        if rec["methods"]:
+            summary_lines.append("")
+            summary_lines.append("Suggested study types:")
+            for m in rec["methods"]:
+                summary_lines.append(f"- {m}")
+
+        if rec["risks"]:
+            summary_lines.append("")
+            summary_lines.append("Key risks / limitations:")
+            for r in rec["risks"]:
+                summary_lines.append(f"- {r}")
+
+        if rec["alternatives"]:
+            summary_lines.append("")
+            summary_lines.append("Fallback options / backup plans:")
+            for a in rec["alternatives"]:
+                summary_lines.append(f"- {a}")
+
+        summary_text = "\n".join(summary_lines)
+
+        st.code(summary_text, language="text")
+        st.download_button(
+            "Download summary as .txt",
+            data=summary_text,
+            file_name="blis_measurement_recommendation.txt",
+        )
+
+        st.caption(
+            "This is a v4 rules-based assistant. Analysts can fine-tune the rules over time "
+            "by editing the compute_feasibility_score() and build_recommendation() functions."
+        )
+
+# -----------------------------
+# Navigation controls
+# -----------------------------
+st.markdown("---")
+col1, col2 = st.columns(2)
+with col1:
+    if step > 1:
+        st.button("← Back", on_click=go_back)
+with col2:
+    if step < 11:
+        st.button("Next →", on_click=go_next)
