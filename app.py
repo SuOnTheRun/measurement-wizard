@@ -275,7 +275,7 @@ def build_recommendation(answers: dict) -> dict:
             )
 
         # BLS timing
-        if bls_timing == "After/close to end of campaign":
+        if bls_timing == "After/close to the end of campaign":
             risks.append(
                 "Running a BLS after/close to the end of a campaign makes it hard to get a "
                 "representative sample; subconscious recognition even 48 hours after exposure "
@@ -463,7 +463,7 @@ def build_recommendation(answers: dict) -> dict:
 # -----------------------------
 st.title("Blis Measurement Wizard")
 st.caption(
-    "Internal Blis measurement concierge – designed with love."
+    "Internal Blis measurement concierge – designed with love for Sales & Analysts."
 )
 st.markdown("---")
 
@@ -559,7 +559,6 @@ elif step == 3:
         "Not sure",
     ]
 
-    # Map stored short value ("Yes"/"No"/"Not sure") to the correct index
     stored = answers["omnichannel"]
     if stored == "Yes":
         default_index = 0
@@ -568,20 +567,14 @@ elif step == 3:
     else:
         default_index = 2
 
-    choice = st.radio(
-        "",
-        options,
-        index=default_index,
-    )
+    choice = st.radio("", options, index=default_index)
 
-    # Store back the short value we use in the rules engine
     if choice.startswith("Yes"):
         answers["omnichannel"] = "Yes"
     elif choice.startswith("No"):
         answers["omnichannel"] = "No"
     else:
         answers["omnichannel"] = "Not sure"
-
 
 elif step == 4:
     st.markdown(
