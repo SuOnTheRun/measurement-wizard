@@ -423,7 +423,7 @@ def build_recommendation(answers: dict) -> dict:
 # -----------------------------
 st.title("Blis Measurement Wizard")
 st.caption(
-    "Internal Blis measurement concierge – designed with love for Sales & Analysts."
+    "Internal Blis measurement concierge – designed with love."
 )
 st.markdown("---")
 
