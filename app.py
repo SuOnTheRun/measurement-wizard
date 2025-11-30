@@ -167,7 +167,7 @@ def build_recommendation(answers: dict) -> dict:
                 "Set up a holdout geo / audience, even if small, for future flights."
             )
 
-        # "Running a BLS under 500k" / under-powered BLS theme
+        # Under-powered BLS theme
         if budget_level == "Low" or impressions_level == "Low":
             risks.append(
                 "Brand Lift on low spend or low impressions is likely under-powered – treat any "
@@ -321,8 +321,7 @@ def build_recommendation(answers: dict) -> dict:
 # -----------------------------
 st.title("Blis Measurement Wizard")
 st.caption(
-    "Guided helper to choose the right measurement approach for each campaign. "
-    "Designed for Sales (simple) and Analysts (detailed)."
+    "Internal Blis measurement concierge – designed with love for Sales & Analysts."
 )
 
 st.markdown("---")
@@ -479,6 +478,49 @@ if st.button("Get measurement recommendation"):
         st.subheader("Fallback options / backup plans")
         for a in rec["alternatives"]:
             st.markdown(f"- {a}")
+
+    # -------- Email / deck summary --------
+    st.markdown("---")
+    st.subheader("Email / deck summary")
+
+    summary_lines = [
+        "Blis Measurement Recommendation",
+        "-------------------------------",
+        f"Market: {answers['market']}",
+        f"Objective: {objective}",
+        f"Client expectation: {expectation}",
+        f"Feasibility: {status_text}",
+        "",
+        "Recommended approach:",
+        f"- {rec['primary']}",
+    ]
+
+    if rec["methods"]:
+        summary_lines.append("")
+        summary_lines.append("Suggested study types:")
+        for m in rec["methods"]:
+            summary_lines.append(f"- {m}")
+
+    if rec["risks"]:
+        summary_lines.append("")
+        summary_lines.append("Key risks / limitations:")
+        for r in rec["risks"]:
+            summary_lines.append(f"- {r}")
+
+    if rec["alternatives"]:
+        summary_lines.append("")
+        summary_lines.append("Fallback options / backup plans:")
+        for a in rec["alternatives"]:
+            summary_lines.append(f"- {a}")
+
+    summary_text = "\n".join(summary_lines)
+
+    st.code(summary_text, language="text")
+    st.download_button(
+        "Download summary as .txt",
+        data=summary_text,
+        file_name="blis_measurement_recommendation.txt",
+    )
 
     st.caption(
         "This is a v3 rules-based assistant. Analysts can fine-tune the rules over time "
