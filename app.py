@@ -20,7 +20,6 @@ MARKETS = {
 def get_budget_band_labels(market_info: dict):
     """Return human-readable budget bands using the market currency."""
     cur = market_info["currency_symbol"]
-    # If we don't know the symbol, just say "local currency"
     if cur == "":
         low = "Low (small test budget)"
         med = "Medium (standard campaign)"
@@ -65,21 +64,32 @@ def compute_feasibility_score(answers: dict) -> int:
     """
     score = 3
 
-    if answers["budget_level"] == "Low":
+    budget_level = answers["budget_level"]
+    impressions_level = answers["impressions_level"]
+    duration = answers["duration"]
+    objective = answers["objective"]
+    ids = answers["ids"]
+    offline_data = answers["offline_data"]
+    expectation = answers["expectation"]
+    other_media = answers["other_media"]
+
+    if budget_level == "Low":
         score -= 1
-    if answers["impressions_level"] == "Low":
+    if impressions_level == "Low":
         score -= 1
-    if answers["duration"] in ["< 1 week", "1–2 weeks"]:
+    if duration in ["< 1 week", "1–2 weeks"]:
         score -= 1
-    if (
-        answers["objective"] == "Brand awareness / consideration"
-        and answers["ids"] == "No"
+    if objective == "Brand awareness / consideration" and ids == "No":
+        score -= 1
+    if objective in ["Footfall / store visits", "Sales / conversions"] and offline_data == "No":
+        score -= 1
+    # Expectation mismatch: client wants formal lift but inputs are weak
+    if expectation == "Formal, statistically robust lift study" and (
+        budget_level == "Low" or impressions_level == "Low"
     ):
         score -= 1
-    if (
-        answers["objective"] in ["Footfall / store visits", "Sales / conversions"]
-        and answers["offline_data"] == "No"
-    ):
+    # Heavy overlapping media makes isolation harder
+    if other_media == "Yes":
         score -= 1
 
     return score
@@ -88,8 +98,8 @@ def compute_feasibility_score(answers: dict) -> int:
 def map_score_to_status(score: int) -> tuple[str, str]:
     """
     Map numeric score to a human label + streamlit message type.
-      returns: (status_text, status_type)
-      where status_type is one of 'success', 'warning', 'error'
+    returns: (status_text, status_type) where status_type is
+    one of 'success', 'warning', 'error'
     """
     if score >= 3:
         return "Strong measurement feasible", "success"
@@ -105,7 +115,7 @@ def map_score_to_status(score: int) -> tuple[str, str]:
 # -----------------------------
 def build_recommendation(answers: dict) -> dict:
     """
-    Very simple rules-based engine.
+    Rules-based engine.
     Returns a dict with:
       - primary
       - details (list of strings)
@@ -121,12 +131,14 @@ def build_recommendation(answers: dict) -> dict:
     control = answers["control"]
     offline_data = answers["offline_data"]
     market = answers["market"]
+    expectation = answers["expectation"]
+    other_media = answers["other_media"]
 
     primary = ""
-    details = []
-    risks = []
-    alternatives = []
-    methods = []
+    details: list[str] = []
+    risks: list[str] = []
+    alternatives: list[str] = []
+    methods: list[str] = []
 
     # --- Objective-specific recommendations ---
 
@@ -153,6 +165,13 @@ def build_recommendation(answers: dict) -> dict:
             )
             alternatives.append(
                 "Set up a holdout geo / audience, even if small, for future flights."
+            )
+
+        # "Running a BLS under 500k" / under-powered BLS theme
+        if budget_level == "Low" or impressions_level == "Low":
+            risks.append(
+                "Brand Lift on low spend or low impressions is likely under-powered – treat any "
+                "read as directional, not definitive proof."
             )
 
     elif objective == "Footfall / store visits":
@@ -226,7 +245,6 @@ def build_recommendation(answers: dict) -> dict:
 
     # --- Cross-cutting risk checks ---
 
-    # Budget
     if budget_level == "Low":
         risks.append(
             "Budget is in the low band – sample sizes may be too small for a clean, "
@@ -237,13 +255,11 @@ def build_recommendation(answers: dict) -> dict:
             "lift to directional insights."
         )
 
-    # Impressions
     if impressions_level == "Low":
         risks.append(
             "Planned impressions are low – this reduces the number of exposed users and events."
         )
 
-    # Duration
     if duration in ["< 1 week", "1–2 weeks"]:
         risks.append(
             "Flight length is short – harder to accumulate enough exposed vs control data, "
@@ -254,7 +270,6 @@ def build_recommendation(answers: dict) -> dict:
             "where possible."
         )
 
-    # Market nuance – just a gentle note
     if market in ["India", "Other"]:
         details.append(
             "Check local data partners and privacy rules – measurement availability can vary "
@@ -266,6 +281,30 @@ def build_recommendation(answers: dict) -> dict:
         risks.append(
             "Low spend AND low impressions – this is classic 'Bermuda Triangle' territory where "
             "results will likely be inconclusive."
+        )
+
+    # Expectation vs reality mismatch
+    if expectation == "Formal, statistically robust lift study" and (
+        budget_level == "Low" or impressions_level == "Low" or duration in ["< 1 week", "1–2 weeks"]
+    ):
+        risks.append(
+            "Client expects a formal, statistically robust lift read, but inputs look under-powered. "
+            "Reframe expectations towards directional learning or adjust the plan."
+        )
+        alternatives.append(
+            "Either increase scale (budget, impressions, duration) or reposition this as a "
+            "directional / learning study instead of a definitive proof point."
+        )
+
+    # Other media noise
+    if other_media == "Yes":
+        risks.append(
+            "There is heavy other media activity in the same markets/period – isolating the impact "
+            "of this campaign alone will be harder."
+        )
+        alternatives.append(
+            "Where possible, stagger campaigns, define clean test vs control regions, or use "
+            "geo-level modelling that can account for overlapping spend."
         )
 
     return {
@@ -364,6 +403,22 @@ control = st.radio(
     ["Yes", "No", "Not sure"],
 )
 
+# Expectation-setting
+expectation = st.radio(
+    "9. What is the client expecting from measurement?",
+    [
+        "Formal, statistically robust lift study",
+        "Directional understanding / story is fine",
+        "Not sure yet",
+    ],
+)
+
+# Other media overlap
+other_media = st.radio(
+    "10. Is there heavy other media activity in the same period/markets that we cannot cleanly control for (TV, OOH, big digital bursts)?",
+    ["Yes", "No", "Not sure"],
+)
+
 # Analyst mode toggle
 show_analyst_view = st.checkbox(
     "Show analyst detail (method names, caveats)", value=False
@@ -384,6 +439,8 @@ if st.button("Get measurement recommendation"):
         "duration": duration,
         "offline_data": offline_data,
         "control": control,
+        "expectation": expectation,
+        "other_media": other_media,
     }
 
     # Feasibility status
@@ -403,7 +460,6 @@ if st.button("Get measurement recommendation"):
     st.subheader("Recommended measurement approach")
     st.success(rec["primary"])
 
-    # Analyst-only details
     if show_analyst_view and rec["methods"]:
         st.subheader("Suggested study types (for analysts)")
         for m in rec["methods"]:
@@ -425,7 +481,7 @@ if st.button("Get measurement recommendation"):
             st.markdown(f"- {a}")
 
     st.caption(
-        "This is a v2 rules-based assistant. Analysts can fine-tune the rules over time "
+        "This is a v3 rules-based assistant. Analysts can fine-tune the rules over time "
         "by editing the compute_feasibility_score() and build_recommendation() functions."
     )
 else:
