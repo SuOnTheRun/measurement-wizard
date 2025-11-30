@@ -11,8 +11,13 @@ st.set_page_config(page_title="Blis Measurement Wizard", layout="centered")
 MARKETS = {
     "US": {"currency_symbol": "$", "currency_name": "USD"},
     "UK": {"currency_symbol": "£", "currency_name": "GBP"},
-    "India": {"currency_symbol": "₹", "currency_name": "INR"},
     "EU": {"currency_symbol": "€", "currency_name": "EUR"},
+    "AU": {"currency_symbol": "A$", "currency_name": "AUD"},
+    "NZ": {"currency_symbol": "NZ$", "currency_name": "NZD"},
+    "Asia": {"currency_symbol": "", "currency_name": "Local currency (Asia)"},
+    "Benelux": {"currency_symbol": "€", "currency_name": "EUR"},
+    "Italy": {"currency_symbol": "€", "currency_name": "EUR"},
+    "India": {"currency_symbol": "₹", "currency_name": "INR"},
     "Other": {"currency_symbol": "", "currency_name": "Local currency"},
 }
 
@@ -52,6 +57,77 @@ def get_impression_level(imp_label: str) -> str:
 
 
 # -----------------------------
+# Vendor hints by market & objective
+# -----------------------------
+def get_vendor_hint(market: str, objective: str) -> str:
+    """
+    Return a short text hint about likely partners / products by market.
+    These are editable by analysts to match real Blis setups.
+    """
+    brand_vendors = {
+        "US": "Brand lift via partners such as Lucid / Dynata.",
+        "UK": "Brand lift via YouGov / On Device style partners.",
+        "EU": "Brand lift via EU panel providers (Dynata / Cint, etc.).",
+        "AU": "Brand lift via AU panels (Pureprofile / local partners).",
+        "NZ": "Brand lift via AU/NZ panels (Pureprofile / local partners).",
+        "Asia": "Brand lift via regional panels where available.",
+        "Benelux": "Brand lift via EU/Benelux panel partners.",
+        "Italy": "Brand lift via EU panel partners, subject to local privacy rules.",
+        "India": "Brand lift via India panel partners where available.",
+        "Other": "Brand lift via local panel partners where available.",
+    }
+
+    footfall_vendors = {
+        "US": "Footfall via Blis location signals and US POI partners.",
+        "UK": "Footfall via Blis location graph and UK POI data.",
+        "EU": "Footfall via Blis EU location graph and POI partners.",
+        "AU": "Footfall via AU mobile/location partners where available.",
+        "NZ": "Footfall via NZ location partners where available.",
+        "Asia": "Footfall via regional location graph; partner availability varies.",
+        "Benelux": "Footfall via EU/Benelux location graph and POIs.",
+        "Italy": "Footfall via EU graph; check local compliance.",
+        "India": "Footfall via India location graph where active.",
+        "Other": "Footfall via local location / POI partners where available.",
+    }
+
+    sales_vendors = {
+        "US": "Sales uplift via US retail / card / loyalty data partners where live.",
+        "UK": "Sales uplift via UK retail / loyalty / panel data partners.",
+        "EU": "Sales uplift via EU retail or panel data partners where available.",
+        "AU": "Sales uplift via AU retailer / panel partners where available.",
+        "NZ": "Sales uplift via AU/NZ partners where available.",
+        "Asia": "Sales uplift via local retail / e-com data where accessible.",
+        "Benelux": "Sales uplift via EU panel/retail data partners.",
+        "Italy": "Sales uplift via EU panel/retail data partners; check restrictions.",
+        "India": "Sales uplift via India retail / e-commerce partners where available.",
+        "Other": "Sales uplift via local retail / panel partners if available.",
+    }
+
+    app_vendors = {
+        "US": "App measurement via MMPs (AppsFlyer / Adjust / Branch) and SKAN.",
+        "UK": "App measurement via MMPs and UK app analytics setups.",
+        "EU": "App measurement via MMPs with EU privacy-compliant setups.",
+        "AU": "App measurement via MMPs for AU apps.",
+        "NZ": "App measurement via MMPs for AU/NZ apps.",
+        "Asia": "App measurement via regional MMP accounts.",
+        "Benelux": "App measurement via EU MMP setups.",
+        "Italy": "App measurement via EU MMP setups; ensure consent mechanisms.",
+        "India": "App measurement via India-specific MMP integrations.",
+        "Other": "App measurement via local MMP accounts.",
+    }
+
+    if "Brand awareness" in objective:
+        return brand_vendors.get(market, "")
+    if "Footfall" in objective:
+        return footfall_vendors.get(market, "")
+    if "Sales" in objective:
+        return sales_vendors.get(market, "")
+    if "App installs" in objective:
+        return app_vendors.get(market, "")
+    return ""
+
+
+# -----------------------------
 # Feasibility scoring
 # -----------------------------
 def compute_feasibility_score(answers: dict) -> int:
@@ -72,6 +148,7 @@ def compute_feasibility_score(answers: dict) -> int:
     offline_data = answers["offline_data"]
     expectation = answers["expectation"]
     other_media = answers["other_media"]
+    creative = answers["creative"]
 
     if budget_level == "Low":
         score -= 1
@@ -90,6 +167,9 @@ def compute_feasibility_score(answers: dict) -> int:
         score -= 1
     # Heavy overlapping media makes isolation harder
     if other_media == "Yes":
+        score -= 1
+    # Weak creative makes all measurement noisier
+    if creative == "Weak / poor fit / static banners only":
         score -= 1
 
     return score
@@ -133,6 +213,7 @@ def build_recommendation(answers: dict) -> dict:
     market = answers["market"]
     expectation = answers["expectation"]
     other_media = answers["other_media"]
+    creative = answers["creative"]
 
     primary = ""
     details: list[str] = []
@@ -270,7 +351,7 @@ def build_recommendation(answers: dict) -> dict:
             "where possible."
         )
 
-    if market in ["India", "Other"]:
+    if market in ["India", "Asia", "Other"]:
         details.append(
             "Check local data partners and privacy rules – measurement availability can vary "
             "by market."
@@ -307,6 +388,27 @@ def build_recommendation(answers: dict) -> dict:
             "geo-level modelling that can account for overlapping spend."
         )
 
+    # Creative quality
+    if creative == "Weak / poor fit / static banners only":
+        risks.append(
+            "Creative is weak or poorly aligned – this reduces the chance of detecting any lift, "
+            "even if measurement design is strong."
+        )
+        alternatives.append(
+            "Consider a creative refresh or A/B test first, then rerun measurement on the stronger "
+            "creative platform."
+        )
+    elif creative == "Average / not tested yet":
+        details.append(
+            "Creative has not been fully validated – treat results as a read on both media "
+            "and creative performance."
+        )
+
+    # Attach vendor hint for analysts
+    vendor_hint = get_vendor_hint(market, objective)
+    if vendor_hint:
+        methods.append(vendor_hint)
+
     return {
         "primary": primary,
         "details": details,
@@ -325,7 +427,8 @@ st.caption(
 )
 st.markdown("---")
 
-# step + answers live in session_state
+TOTAL_STEPS = 12
+
 if "step" not in st.session_state:
     st.session_state.step = 1
 
@@ -343,6 +446,7 @@ if "answers" not in st.session_state:
         "control": "Not sure",
         "expectation": "Directional understanding / story is fine",
         "other_media": "Not sure",
+        "creative": "Average / not tested yet",
         "show_analyst_view": False,
     }
 
@@ -350,7 +454,7 @@ answers = st.session_state.answers
 
 
 def go_next():
-    if st.session_state.step < 11:
+    if st.session_state.step < TOTAL_STEPS:
         st.session_state.step += 1
 
 
@@ -360,7 +464,7 @@ def go_back():
 
 
 step = st.session_state.step
-st.write(f"Step {step} of 11")
+st.write(f"Step {step} of {TOTAL_STEPS}")
 
 # -----------------------------
 # Step-by-step questions
@@ -498,8 +602,24 @@ elif step == 10:
     answers["other_media"] = other_media
 
 elif step == 11:
+    creative = st.radio(
+        "How would you rate the creative quality for this campaign?",
+        [
+            "Strong, tested creative aligned to the message",
+            "Average / not tested yet",
+            "Weak / poor fit / static banners only",
+        ],
+        index=[
+            "Strong, tested creative aligned to the message",
+            "Average / not tested yet",
+            "Weak / poor fit / static banners only",
+        ].index(answers["creative"]),
+    )
+    answers["creative"] = creative
+
+elif step == 12:
     show_analyst_view = st.checkbox(
-        "Show analyst detail (method names, caveats)",
+        "Show analyst detail (method names, vendors, caveats)",
         value=answers.get("show_analyst_view", False),
     )
     answers["show_analyst_view"] = show_analyst_view
@@ -517,6 +637,7 @@ elif step == 11:
             "control": answers["control"],
             "expectation": answers["expectation"],
             "other_media": answers["other_media"],
+            "creative": answers["creative"],
         }
 
         # Feasibility status
@@ -537,7 +658,7 @@ elif step == 11:
         st.success(rec["primary"])
 
         if show_analyst_view and rec["methods"]:
-            st.subheader("Suggested study types (for analysts)")
+            st.subheader("Suggested study types & vendor notes (for analysts)")
             for m in rec["methods"]:
                 st.markdown(f"- {m}")
 
@@ -566,6 +687,7 @@ elif step == 11:
             f"Market: {final_answers['market']}",
             f"Objective: {final_answers['objective']}",
             f"Client expectation: {final_answers['expectation']}",
+            f"Creative quality: {final_answers['creative']}",
             f"Feasibility: {status_text}",
             "",
             "Recommended approach:",
@@ -574,7 +696,7 @@ elif step == 11:
 
         if rec["methods"]:
             summary_lines.append("")
-            summary_lines.append("Suggested study types:")
+            summary_lines.append("Suggested study types / vendor notes:")
             for m in rec["methods"]:
                 summary_lines.append(f"- {m}")
 
@@ -600,8 +722,9 @@ elif step == 11:
         )
 
         st.caption(
-            "This is a v4 rules-based assistant. Analysts can fine-tune the rules over time "
-            "by editing the compute_feasibility_score() and build_recommendation() functions."
+            "This is a v5 rules-based assistant. Analysts can fine-tune the rules over time "
+            "by editing the compute_feasibility_score(), get_vendor_hint(), and "
+            "build_recommendation() functions."
         )
 
 # -----------------------------
@@ -613,5 +736,5 @@ with col1:
     if step > 1:
         st.button("← Back", on_click=go_back)
 with col2:
-    if step < 11:
+    if step < TOTAL_STEPS:
         st.button("Next →", on_click=go_next)
