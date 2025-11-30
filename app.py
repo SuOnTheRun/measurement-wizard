@@ -3,10 +3,7 @@ import streamlit as st
 # -----------------------------
 # Basic page config
 # -----------------------------
-st.set_page_config(
-    page_title="Blis Measurement Wizard",
-    layout="centered"
-)
+st.set_page_config(page_title="Blis Measurement Wizard", layout="centered")
 
 # -----------------------------
 # Market & currency settings
@@ -50,9 +47,57 @@ def get_impression_level(imp_label: str) -> str:
     label = imp_label.lower()
     if "<" in label or "0–" in label:
         return "Low"
-    if "50k–" in label or "100k–" in label:
+    if "100k–" in label or "50k–" in label:
         return "Medium"
     return "High"
+
+
+# -----------------------------
+# Feasibility scoring
+# -----------------------------
+def compute_feasibility_score(answers: dict) -> int:
+    """
+    Start from 3 and subtract points for risk factors.
+    3+  -> strong
+    2   -> feasible with caveats
+    1   -> borderline / directional
+    0-  -> not recommended as formal study
+    """
+    score = 3
+
+    if answers["budget_level"] == "Low":
+        score -= 1
+    if answers["impressions_level"] == "Low":
+        score -= 1
+    if answers["duration"] in ["< 1 week", "1–2 weeks"]:
+        score -= 1
+    if (
+        answers["objective"] == "Brand awareness / consideration"
+        and answers["ids"] == "No"
+    ):
+        score -= 1
+    if (
+        answers["objective"] in ["Footfall / store visits", "Sales / conversions"]
+        and answers["offline_data"] == "No"
+    ):
+        score -= 1
+
+    return score
+
+
+def map_score_to_status(score: int) -> tuple[str, str]:
+    """
+    Map numeric score to a human label + streamlit message type.
+      returns: (status_text, status_type)
+      where status_type is one of 'success', 'warning', 'error'
+    """
+    if score >= 3:
+        return "Strong measurement feasible", "success"
+    if score == 2:
+        return "Feasible but with caveats", "warning"
+    if score == 1:
+        return "Borderline – treat as directional only", "warning"
+    return "Not recommended as a formal study – directional only", "error"
 
 
 # -----------------------------
@@ -66,6 +111,7 @@ def build_recommendation(answers: dict) -> dict:
       - details (list of strings)
       - risks (list of strings)
       - alternatives (list of strings)
+      - methods (list of strings)  # for analysts
     """
     objective = answers["objective"]
     ids = answers["ids"]
@@ -80,18 +126,22 @@ def build_recommendation(answers: dict) -> dict:
     details = []
     risks = []
     alternatives = []
+    methods = []
 
     # --- Objective-specific recommendations ---
 
     if objective == "Brand awareness / consideration":
         if ids == "Yes":
             primary = "Run an ID-based Brand Lift Study where available."
+            methods.append("Full Brand Lift Study (ID-based or panel, exposed vs control)")
             details.append(
                 "Use exposed vs control methodology with IDs or device-based panels, "
                 "following local market norms."
             )
         else:
             primary = "Use a panel-based Brand Lift or directional brand proxies."
+            methods.append("Panel-based Brand Lift or survey add-on")
+            methods.append("Directional brand proxy: CTR, VTR, attention metrics")
             details.append(
                 "Without IDs, use survey panels or brand proxies (CTR, VTR, attention) "
                 "to infer brand impact."
@@ -108,12 +158,14 @@ def build_recommendation(answers: dict) -> dict:
     elif objective == "Footfall / store visits":
         if offline_data == "Yes":
             primary = "Run a Footfall / Store Visit Study."
+            methods.append("Location-based Footfall Uplift (exposed vs control visits)")
             details.append(
                 "Measure exposed vs control visit rate using location signals and store "
                 "POIs for the chosen market."
             )
         else:
             primary = "Use location reach & proximity as a proxy for footfall."
+            methods.append("Reach within store catchments & visit propensity reporting")
             details.append(
                 "Without reliable store visit data, report on reach within store catchments "
                 "and visit propensity segments rather than strict incremental visits."
@@ -126,12 +178,18 @@ def build_recommendation(answers: dict) -> dict:
     elif objective == "Sales / conversions":
         if offline_data == "Yes":
             primary = "Run a Sales Uplift / Matched Panel Study."
+            methods.append("Sales Uplift using matched exposed vs control panel")
             details.append(
                 "Use matched exposed vs control populations with sales or conversion data linked "
                 "at customer, store or region level."
             )
         else:
-            primary = "Optimise towards performance KPIs (CPA / ROAS) rather than full Sales Uplift."
+            primary = (
+                "Optimise towards performance KPIs (CPA / ROAS) rather than full Sales Uplift."
+            )
+            methods.append(
+                "Performance optimisation using digital conversions and CPA / ROAS"
+            )
             details.append(
                 "Without transaction data, focus on digital conversions and cost-per-result, "
                 "with directional modelling not strict uplift."
@@ -143,12 +201,14 @@ def build_recommendation(answers: dict) -> dict:
     elif objective == "App installs / app usage":
         if offline_data == "Yes":
             primary = "Run an App Attribution & Incrementality Study."
+            methods.append("App attribution + incrementality (MMP / SKAN / SDK data)")
             details.append(
-                "Use MMP / SKAN / SDK data + control design to measure incremental app installs "
+                "Use MMP / SKAN / SDK data plus control design to measure incremental app installs "
                 "or in-app actions."
             )
         else:
             primary = "Use standard app attribution with directional incrementality checks."
+            methods.append("Standard app attribution with geo / audience trend checks")
             details.append(
                 "Without full app analytics, attribute installs to media and use geo or "
                 "audience-level trends as supporting evidence."
@@ -156,6 +216,9 @@ def build_recommendation(answers: dict) -> dict:
 
     else:  # "Other / I'm not sure"
         primary = "Start with a simple effectiveness check and then escalate to a formal study."
+        methods.append(
+            "Basic effectiveness review (delivery, reach, frequency, CTR, VTR)"
+        )
         details.append(
             "Clarify the true business outcome first. In the meantime, use basic media KPIs and "
             "simple exposed vs unexposed comparisons where feasible."
@@ -198,11 +261,19 @@ def build_recommendation(answers: dict) -> dict:
             "by market."
         )
 
+    # Bermuda Triangle: low spend + low impressions
+    if budget_level == "Low" and impressions_level == "Low":
+        risks.append(
+            "Low spend AND low impressions – this is classic 'Bermuda Triangle' territory where "
+            "results will likely be inconclusive."
+        )
+
     return {
         "primary": primary,
         "details": details,
         "risks": risks,
         "alternatives": alternatives,
+        "methods": methods,
     }
 
 
@@ -293,8 +364,16 @@ control = st.radio(
     ["Yes", "No", "Not sure"],
 )
 
+# Analyst mode toggle
+show_analyst_view = st.checkbox(
+    "Show analyst detail (method names, caveats)", value=False
+)
+
 st.markdown("---")
 
+# -----------------------------
+# Run engine on click
+# -----------------------------
 if st.button("Get measurement recommendation"):
     answers = {
         "market": market,
@@ -307,10 +386,28 @@ if st.button("Get measurement recommendation"):
         "control": control,
     }
 
+    # Feasibility status
+    score = compute_feasibility_score(answers)
+    status_text, status_type = map_score_to_status(score)
+
+    if status_type == "success":
+        st.success(f"Feasibility: {status_text}")
+    elif status_type == "warning":
+        st.warning(f"Feasibility: {status_text}")
+    else:
+        st.error(f"Feasibility: {status_text}")
+
+    # Main recommendation
     rec = build_recommendation(answers)
 
     st.subheader("Recommended measurement approach")
     st.success(rec["primary"])
+
+    # Analyst-only details
+    if show_analyst_view and rec["methods"]:
+        st.subheader("Suggested study types (for analysts)")
+        for m in rec["methods"]:
+            st.markdown(f"- {m}")
 
     if rec["details"]:
         st.subheader("How to frame this")
@@ -328,8 +425,8 @@ if st.button("Get measurement recommendation"):
             st.markdown(f"- {a}")
 
     st.caption(
-        "This is a v1 rules-based assistant. Analysts can fine-tune the rules over time "
-        "to match Blis & T-Mobile standards by editing the build_recommendation() function."
+        "This is a v2 rules-based assistant. Analysts can fine-tune the rules over time "
+        "by editing the compute_feasibility_score() and build_recommendation() functions."
     )
 else:
     st.info("Fill in the answers above and click **Get measurement recommendation**.")
