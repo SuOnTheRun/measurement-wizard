@@ -552,25 +552,36 @@ elif step == 3:
         '<div class="question-heading">Is this an omnichannel campaign?</div>',
         unsafe_allow_html=True,
     )
-    omnichannel = st.radio(
+
+    options = [
+        "Yes – includes channels where we do NOT have IDs (audio, OOH, CTV, off-platform)",
+        "No – all key activity is ID-based/in-app display",
+        "Not sure",
+    ]
+
+    # Map stored short value ("Yes"/"No"/"Not sure") to the correct index
+    stored = answers["omnichannel"]
+    if stored == "Yes":
+        default_index = 0
+    elif stored == "No":
+        default_index = 1
+    else:
+        default_index = 2
+
+    choice = st.radio(
         "",
-        [
-            "Yes – includes channels where we do NOT have IDs (audio, OOH, CTV, off-platform)",
-            "No – all key activity is ID-based/in-app display",
-            "Not sure",
-        ],
-        index=[
-            "Yes – includes channels where we do NOT have IDs (audio, OOH, CTV, off-platform)",
-            "No – all key activity is ID-based/in-app display",
-            "Not sure",
-        ].index(answers["omnichannel"]),
+        options,
+        index=default_index,
     )
-    if omnichannel.startswith("Yes"):
+
+    # Store back the short value we use in the rules engine
+    if choice.startswith("Yes"):
         answers["omnichannel"] = "Yes"
-    elif omnichannel.startswith("No"):
+    elif choice.startswith("No"):
         answers["omnichannel"] = "No"
     else:
         answers["omnichannel"] = "Not sure"
+
 
 elif step == 4:
     st.markdown(
