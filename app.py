@@ -5,7 +5,6 @@ import streamlit as st
 # -----------------------------
 st.set_page_config(page_title="Blis Measurement Wizard", layout="centered")
 
-# Bump base font size and make question headings bigger
 st.markdown(
     """
     <style>
@@ -40,7 +39,6 @@ MARKETS = {
 
 
 def get_budget_band_labels(market_info: dict):
-    """Return human-readable budget bands using the market currency."""
     cur = market_info["currency_symbol"]
     if cur == "":
         low = "Low (small test budget, may be under ~30k)"
@@ -54,7 +52,6 @@ def get_budget_band_labels(market_info: dict):
 
 
 def get_budget_level(budget_label: str) -> str:
-    """Map label back to 'Low' / 'Medium' / 'High'."""
     label = budget_label.lower()
     if "low" in label:
         return "Low"
@@ -64,7 +61,6 @@ def get_budget_level(budget_label: str) -> str:
 
 
 def get_impression_level(imp_label: str) -> str:
-    """Very rough categorisation of impression bands."""
     label = imp_label.lower()
     if "<" in label or "0–" in label:
         return "Low"
@@ -74,13 +70,9 @@ def get_impression_level(imp_label: str) -> str:
 
 
 # -----------------------------
-# Vendor-ish hints by market & objective (generic)
+# Vendor-ish hints
 # -----------------------------
 def get_vendor_hint(market: str, objective: str) -> str:
-    """
-    Return a short text hint about likely partner / product shape by market.
-    Only reflects what’s implied in the stickies (panel vs location vs sales vs app vendors).
-    """
     if "Brand awareness" in objective:
         return {
             "US": "Brand lift via established US panel/brand study partners.",
@@ -90,7 +82,7 @@ def get_vendor_hint(market: str, objective: str) -> str:
             "NZ": "Brand lift via AU/NZ panel providers.",
             "Asia": "Brand lift via regional panel partners where available.",
             "Benelux": "Brand lift via EU/Benelux panel partners.",
-            "Italy": "Brand lift via EU/IT panel partners, respecting local privacy.",
+            "Italy": "Brand lift via EU/IT panel partners.",
             "India": "Brand lift via India panel partners where active.",
             "Other": "Brand lift via local/regional panel partners where available.",
         }.get(market, "")
@@ -116,39 +108,31 @@ def get_vendor_hint(market: str, objective: str) -> str:
             "NZ": "Sales uplift using AU/NZ retail data where available.",
             "Asia": "Sales uplift using local e-commerce/retail data where clients provide it.",
             "Benelux": "Sales uplift using EU/Benelux retail or panel data where available.",
-            "Italy": "Sales uplift using EU/IT retail/panel data; check legal constraints.",
+            "Italy": "Sales uplift using EU/IT retail/panel data.",
             "India": "Sales uplift using India retail/e-commerce data where enabled.",
             "Other": "Sales uplift using local retail/panel data where available.",
         }.get(market, "")
     if "App installs" in objective:
         return {
-            "US": "App uplift measurement via app analytics/MMP-style partners.",
-            "UK": "App uplift measurement via UK app analytics/MMP setups.",
-            "EU": "App uplift measurement via EU app analytics/MMP setups.",
-            "AU": "App uplift measurement via AU/NZ app analytics setups.",
-            "NZ": "App uplift measurement via AU/NZ app analytics setups.",
-            "Asia": "App uplift measurement via regional app analytics setups.",
-            "Benelux": "App uplift measurement via EU app analytics setups.",
-            "Italy": "App uplift measurement via EU/IT app analytics setups.",
-            "India": "App uplift measurement via India app analytics/MMP setups.",
-            "Other": "App uplift measurement via local app analytics/MMP setups.",
+            "US": "App uplift via app analytics/MMP-style partners.",
+            "UK": "App uplift via UK app analytics/MMP setups.",
+            "EU": "App uplift via EU app analytics/MMP setups.",
+            "AU": "App uplift via AU/NZ app analytics setups.",
+            "NZ": "App uplift via AU/NZ app analytics setups.",
+            "Asia": "App uplift via regional app analytics setups.",
+            "Benelux": "App uplift via EU app analytics setups.",
+            "Italy": "App uplift via EU/IT app analytics setups.",
+            "India": "App uplift via India app analytics/MMP setups.",
+            "Other": "App uplift via local app analytics/MMP setups.",
         }.get(market, "")
     return ""
 
 
 # -----------------------------
-# Feasibility scoring (based on stickies)
+# Feasibility scoring
 # -----------------------------
 def compute_feasibility_score(answers: dict) -> int:
-    """
-    Start from 3 and subtract points for risk factors from the sticky notes.
-    3+  -> strong
-    2   -> feasible with caveats
-    1   -> borderline / directional
-    0-  -> not recommended as formal study
-    """
     score = 3
-
     budget_level = answers["budget_level"]
     impressions_level = answers["impressions_level"]
     duration = answers["duration"]
@@ -179,14 +163,12 @@ def compute_feasibility_score(answers: dict) -> int:
     if creative == "Weak / poor fit / static banners only":
         score -= 1
     if objective == "Brand awareness / consideration" and niche == "Yes":
-        # B2B/niche audiences sticky
         score -= 1
 
     return score
 
 
 def map_score_to_status(score: int) -> tuple[str, str]:
-    """Map numeric score to a label & Streamlit message type."""
     if score >= 3:
         return "Strong measurement feasible", "success"
     if score == 2:
@@ -200,15 +182,6 @@ def map_score_to_status(score: int) -> tuple[str, str]:
 # Recommendation logic
 # -----------------------------
 def build_recommendation(answers: dict) -> dict:
-    """
-    Rules-based engine reflecting the sticky notes.
-    Returns a dict with:
-      - primary
-      - details (list of strings)
-      - risks (list of strings)
-      - alternatives (list of strings)
-      - methods (list of strings)  # for analysts
-    """
     objective = answers["objective"]
     ids = answers["ids"]
     budget_level = answers["budget_level"]
@@ -225,81 +198,61 @@ def build_recommendation(answers: dict) -> dict:
     bls_timing = answers["bls_timing"]
 
     primary = ""
-    details: list[str] = []
-    risks: list[str] = []
-    alternatives: list[str] = []
-    methods: list[str] = []
-
-    # --- Objective-specific recommendations & minimums from stickies ---
+    details, risks, alternatives, methods = [], [], [], []
 
     if objective == "Brand awareness / consideration":
-        # If we cannot rely on IDs for the whole campaign or omnichannel is messy -> SHG
         if ids != "Yes" or omnichannel == "Yes":
             primary = "Run an SHG-based Brand Lift / custom uplift study (min ~100k media spend)."
             methods.append("BLS SHG (minimum ~100k media spend).")
             methods.append("If SHG is not possible, use ODR-style survey (minimum ~40k).")
             details.append(
-                "Channels without IDs (audio, OOH, CTV, off-platform) and omnichannel activity "
-                "require SHG-type brand lift or an ODR survey rather than pure ID-based BLS."
+                "Channels without IDs and omnichannel activity require SHG-type brand lift or "
+                "an ODR survey rather than pure ID-based BLS."
             )
         else:
             primary = "Run an ID-based Brand Lift Study (min ~30k media spend)."
             methods.append("BLS ID (minimum ~30k media spend).")
-            methods.append("Optionally, BLS SHG (minimum ~100k) for broader omnichannel coverage.")
+            methods.append("Optionally, BLS SHG (minimum ~100k) for omnichannel coverage.")
             methods.append("ODR survey (minimum ~40k) as an alternative panel-based approach.")
             details.append(
                 "Use exposed vs control Brand Lift with IDs where available. "
-                "If additional channels lack IDs, consider SHG to capture them."
+                "If additional channels lack IDs, consider SHG."
             )
 
-        # Control group
         if control == "No":
-            risks.append(
-                "No control group defined – this weakens the ability to prove incremental lift."
-            )
-            alternatives.append(
-                "Set up a holdout geo/audience, even if small, for future flights."
-            )
+            risks.append("No control group defined – weakens the ability to prove incremental lift.")
+            alternatives.append("Set up a holdout geo/audience, even if small, for future flights.")
 
-        # Under-powered BLS & 30k example
         if budget_level == "Low":
             risks.append(
-                "Running a BLS under ~30k spend can produce too small a sample for valid results. "
-                "Example from the sticky: £8 CPM on a £30k budget ≈ 240,000 impressions → "
-                "80,000 unique reach at frequency 3 → 800 clicks at 1% CTR → "
-                "80 completes at 10% completion – too small a sample."
+                "Running a BLS under ~30k spend can produce too small a sample. Example: "
+                "£8 CPM on a £30k budget ≈ 240k impressions → 80k unique reach at freq 3 → "
+                "800 clicks at 1% CTR → 80 completes at 10% completion – too small."
             )
             alternatives.append(
-                "Either increase spend beyond ~30k or treat any Brand Lift read as small-sample "
-                "and directional."
+                "Increase spend beyond ~30k or treat any Brand Lift read as small-sample and directional."
             )
 
-        # BLS timing
         if bls_timing == "After/close to the end of campaign":
             risks.append(
-                "Running a BLS after/close to the end of a campaign makes it hard to get a "
-                "representative sample; subconscious recognition even 48 hours after exposure "
-                "can be limited."
+                "Running BLS after/close to the end of a campaign makes it hard to get a "
+                "representative sample; subconscious recognition even 48 hours after exposure is limited."
             )
 
-        # Niche audience / B2B
         if niche == "Yes":
             risks.append(
                 "B2B/niche audience: likelihood of reaching enough respondents with BLS is very low."
             )
             alternatives.append(
-                "Consider broader proxy audiences or alternative methods (qual, desk research, "
-                "panel-based surveys not tied only to exposure)."
+                "Consider broader proxy audiences or alternative methods (qual, desk research, panel-based)."
             )
 
-        # Respondent experience
         risks.append(
             "Respondent experience: avoid too many answer options, overly long questions, or "
             "excessive survey length – these reduce completion and data quality."
         )
 
     elif objective == "Footfall / store visits":
-        # Footfall uplift, Blis or Unacast – SHG 100k min, ID 30k min
         if offline_data == "Yes":
             if ids == "Yes":
                 primary = "Run an ID-based Footfall Uplift study (min ~30k media spend)."
@@ -319,52 +272,46 @@ def build_recommendation(answers: dict) -> dict:
                 "and density of impressions around stores instead of strict uplift."
             )
             alternatives.append(
-                "Enable store visit data (via partners, beacons, Wi-Fi, or POS linkage) "
-                "for future campaigns."
+                "Enable store visit data (via partners, beacons, Wi-Fi, or POS linkage) for future campaigns."
             )
 
     elif objective == "Sales / conversions":
-        # Mastercard by merchant / Circana by product with min spends
         if offline_data == "Yes":
             primary = "Run a Sales Uplift study using merchant/product-level data."
             methods.append("Mastercard by merchant (minimum ~120k media spend).")
             methods.append("Circana by product (minimum ~100k media spend).")
             details.append(
-                "Use matched exposed vs control at merchant/product level with panel or "
-                "transaction data, respecting the minimum spends."
+                "Use matched exposed vs control at merchant/product level with panel or transaction data."
             )
         else:
             primary = (
-                "Optimise towards performance KPIs (CPA/ROAS); full sales uplift not feasible "
-                "without transaction data."
+                "Optimise towards performance KPIs (CPA/ROAS); full sales uplift not feasible without "
+                "transaction data."
             )
             details.append(
-                "Without sales data (Mastercard/Circana or similar), you can still optimise "
-                "towards digital conversions but not run a formal sales uplift."
+                "Without sales data you can still optimise towards digital conversions but not run "
+                "a formal sales uplift."
             )
             alternatives.append(
-                "Work with the client to enable sales data sharing or partner connections "
-                "for future uplift work."
+                "Work with the client to enable sales data sharing or partner connections for uplift work."
             )
 
     elif objective == "App installs / app usage":
-        # VMO2 / Vodafone – O2 App uplift (120k min)
         if offline_data == "Yes":
             primary = "Run an App Uplift study for key telco/app partners (min ~120k media spend)."
             methods.append("O2/VMO2-style app uplift (minimum ~120k media spend).")
             details.append(
-                "Use app analytics to compare exposed vs control app usage/installs, "
-                "respecting partner minimums."
+                "Use app analytics to compare exposed vs control app usage/installs, respecting partner minimums."
             )
         else:
             primary = "Use standard app analytics and attribution with directional uplift checks."
             methods.append("Standard app attribution with simple uplift checks by geo/audience.")
             details.append(
-                "Without dedicated app uplift partners, attribute installs to media and use "
-                "trend differences as directional evidence."
+                "Without dedicated app uplift partners, attribute installs to media and use trend differences "
+                "as directional evidence."
             )
 
-    else:  # "Other / I'm not sure"
+    else:
         primary = "Run an SHG/custom uplift approach where possible (min ~100k media spend)."
         methods.append("Other/custom uplift via SHG (minimum ~100k).")
         details.append(
@@ -372,79 +319,59 @@ def build_recommendation(answers: dict) -> dict:
             "otherwise fall back to directional KPIs."
         )
 
-    # --- Cross-cutting risk checks / caveats ---
-
-    # Budget/30k threshold
     if budget_level == "Low":
         risks.append(
-            "Budget/spend may be below the ~30k threshold mentioned in the guidelines – this "
-            "can limit sample size and statistical power for any formal study."
+            "Budget/spend may be below the ~30k threshold – this can limit sample size and statistical power."
         )
 
-    # SHG 100k + Bermuda triangle
     if budget_level == "Low" and impressions_level == "Low":
         risks.append(
-            "Low spend AND low impressions – this is the 'Bermuda Triangle' where results "
-            "often get lost and studies struggle to find lift."
+            "Low spend AND low impressions – this is the 'Bermuda Triangle' where results often get lost."
         )
         alternatives.append(
-            "Either increase scale (budget/impressions) or avoid promising a formal uplift "
-            "study; treat any read as exploratory."
+            "Increase scale (budget/impressions) or avoid promising a formal uplift study; treat as exploratory."
         )
 
     if impressions_level == "Low":
         risks.append(
-            "Number of impressions and density of impressions may be too low for robust "
-            "learning – unique reach and per-postcode distribution will be light."
+            "Number and density of impressions may be too low for robust learning – reach per postcode will be light."
         )
 
-    # Duration / reach / distribution row
     if duration in ["< 1 week", "1–2 weeks"]:
         risks.append(
-            "Duration is short – limited time to build reach and frequency, especially if "
-            "there are bursts of activity."
+            "Duration is short – limited time to build reach and frequency, especially if there are bursts of activity."
         )
+
     if niche == "Yes":
         risks.append(
-            "Niche audience (e.g., ultra high net worth, B2B decision makers) – "
-            "budget vs reach trade-off is tough, and results may be volatile."
+            "Niche audience (e.g., ultra high net worth, B2B decision makers) – budget vs reach trade-off is tough."
         )
 
-    # Other media noise
     if other_media == "Yes":
         risks.append(
-            "Heavy other media (TV, OOH, big digital bursts) in the same period/markets makes "
-            "it harder to isolate this campaign's impact."
+            "Heavy other media in the same period/markets makes it harder to isolate this campaign's impact."
         )
         alternatives.append(
-            "Where possible, stagger campaigns, define clean test vs control regions, or "
-            "apply geo-level designs that consider other media."
+            "Stagger campaigns, define clean test vs control regions, or apply geo designs that consider other media."
         )
 
-    # Creative quality
     if creative == "Weak / poor fit / static banners only":
         risks.append(
-            "Creative is weak or poorly aligned – even a perfect measurement design may fail "
-            "to show lift if the creative does not drive behaviour."
+            "Creative is weak or poorly aligned – even a perfect design may fail to show lift."
         )
         alternatives.append(
-            "Consider improving or testing creative first, then rerunning measurement on a "
-            "stronger platform."
+            "Improve or test creative first, then rerun measurement on a stronger platform."
         )
     elif creative == "Average / not tested yet":
         details.append(
-            "Creative has not been fully tested – treat results as a read on both media and "
-            "creative effectiveness."
+            "Creative has not been fully tested – treat results as a read on both media and creative effectiveness."
         )
 
-    # Market caveat
     if market in ["India", "Asia", "Other"]:
         risks.append(
-            "Market data coverage and partner availability can vary – check in-market teams "
-            "before promising specific methodologies."
+            "Market data coverage and partner availability can vary – check in-market teams before promising specifics."
         )
 
-    # Attach vendor-ish hint
     vendor_hint = get_vendor_hint(market, objective)
     if vendor_hint:
         methods.append(vendor_hint)
@@ -462,9 +389,7 @@ def build_recommendation(answers: dict) -> dict:
 # Wizard state
 # -----------------------------
 st.title("Blis Measurement Wizard")
-st.caption(
-    "Internal Blis measurement concierge – designed with love for Sales & Analysts."
-)
+st.caption("Internal Blis measurement concierge – designed with love for Sales & Analysts.")
 st.markdown("---")
 
 TOTAL_STEPS = 14
@@ -552,13 +477,11 @@ elif step == 3:
         '<div class="question-heading">Is this an omnichannel campaign?</div>',
         unsafe_allow_html=True,
     )
-
     options = [
         "Yes – includes channels where we do NOT have IDs (audio, OOH, CTV, off-platform)",
         "No – all key activity is ID-based/in-app display",
         "Not sure",
     ]
-
     stored = answers["omnichannel"]
     if stored == "Yes":
         default_index = 0
@@ -566,9 +489,7 @@ elif step == 3:
         default_index = 1
     else:
         default_index = 2
-
     choice = st.radio("", options, index=default_index)
-
     if choice.startswith("Yes"):
         answers["omnichannel"] = "Yes"
     elif choice.startswith("No"):
@@ -624,21 +545,12 @@ elif step == 6:
         '<div class="question-heading">Rough planned impressions for this campaign?</div>',
         unsafe_allow_html=True,
     )
-    options = [
-        "< 100k",
-        "100k–500k",
-        "500k–1M",
-        "1M+",
-    ]
+    options = ["< 100k", "100k–500k", "500k–1M", "1M+"]
     if answers["impressions_label"] and answers["impressions_label"] in options:
         default_index = options.index(answers["impressions_label"])
     else:
         default_index = 1
-    impressions_label = st.selectbox(
-        "",
-        options,
-        index=default_index,
-    )
+    impressions_label = st.selectbox("", options, index=default_index)
     answers["impressions_label"] = impressions_label
     answers["impressions_level"] = get_impression_level(impressions_label)
 
@@ -647,18 +559,9 @@ elif step == 7:
         '<div class="question-heading">Expected length of campaign?</div>',
         unsafe_allow_html=True,
     )
-    options = [
-        "< 1 week",
-        "1–2 weeks",
-        "2–4 weeks",
-        "4+ weeks",
-    ]
+    options = ["< 1 week", "1–2 weeks", "2–4 weeks", "4+ weeks"]
     default_index = options.index(answers["duration"]) if answers["duration"] in options else 2
-    duration = st.selectbox(
-        "",
-        options,
-        index=default_index,
-    )
+    duration = st.selectbox("", options, index=default_index)
     answers["duration"] = duration
     st.caption("Includes bursts of activity if the campaign is not continuous.")
 
@@ -723,25 +626,29 @@ elif step == 11:
     answers["creative"] = creative
 
 elif step == 12:
-    # Only strictly matters for Brand / BLS, but we’ll ask once
     st.markdown(
         '<div class="question-heading">If you’re considering Brand Lift, when will the survey run?</div>',
         unsafe_allow_html=True,
     )
-    bls_timing = st.radio(
-        "",
-        [
-            "During main body of campaign (good spread of exposure)",
-            "After/close to the end of campaign",
-            "Not planning Brand Lift / not sure",
-        ],
-        index=[
-            "During main body of campaign (good spread of exposure)",
-            "After/close to the end of campaign",
-            "Not planning Brand Lift / not sure",
-        ].index(answers["bls_timing"]),
-    )
-    answers["bls_timing"] = bls_timing
+    options = [
+        "During main body of campaign (good spread of exposure)",
+        "After/close to the end of campaign",
+        "Not planning Brand Lift / not sure",
+    ]
+    stored = answers["bls_timing"]
+    if stored.startswith("During"):
+        default_index = 0
+    elif stored.startswith("After"):
+        default_index = 1
+    else:
+        default_index = 2
+    choice = st.radio("", options, index=default_index)
+    if choice.startswith("During"):
+        answers["bls_timing"] = "During main body of campaign"
+    elif choice.startswith("After"):
+        answers["bls_timing"] = "After/close to the end of campaign"
+    else:
+        answers["bls_timing"] = "Not planning Brand Lift / not sure"
 
 elif step == 13:
     st.markdown(
@@ -768,10 +675,7 @@ elif step == 14:
         '<div class="question-heading">Do you want analyst detail (methods, vendor notes, caveats) in the output?</div>',
         unsafe_allow_html=True,
     )
-    show_analyst_view = st.checkbox(
-        "",
-        value=answers.get("show_analyst_view", False),
-    )
+    show_analyst_view = st.checkbox("", value=answers.get("show_analyst_view", False))
     answers["show_analyst_view"] = show_analyst_view
 
     st.markdown("---")
@@ -793,7 +697,6 @@ elif step == 14:
             "bls_timing": answers["bls_timing"],
         }
 
-        # Feasibility status
         score = compute_feasibility_score(final_answers)
         status_text, status_type = map_score_to_status(score)
 
@@ -804,7 +707,6 @@ elif step == 14:
         else:
             st.error(f"Feasibility: {status_text}")
 
-        # Main recommendation
         rec = build_recommendation(final_answers)
 
         st.subheader("Recommended measurement approach")
@@ -830,7 +732,6 @@ elif step == 14:
             for a in rec["alternatives"]:
                 st.markdown(f"- {a}")
 
-        # -------- Email / deck summary --------
         st.markdown("---")
         st.subheader("Email / deck summary")
 
