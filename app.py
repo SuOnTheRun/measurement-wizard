@@ -7,7 +7,7 @@ st.set_page_config(page_title="Blis Measurement Wizard", layout="centered")
 
 st.markdown(
     """
-    <style>
+    <style>lov
     html, body, [class*="css"]  {
         font-size: 16px;
     }
@@ -389,7 +389,7 @@ def build_recommendation(answers: dict) -> dict:
 # Wizard state
 # -----------------------------
 st.title("Blis Measurement Wizard")
-st.caption("Internal Blis measurement concierge – designed with love.")
+st.caption("Blis' internal measurement concierge – designed with love.")
 st.markdown("---")
 
 TOTAL_STEPS = 14
