@@ -426,7 +426,7 @@ def build_recommendation(answers: dict) -> dict:
 # Wizard state
 # -----------------------------
 st.title("Blis Measurement Wizard")
-st.caption("Blis' internal measurement concierge – designed with love.")
+st.caption("Internal Blis measurement concierge – designed with love for Sales & Analysts.")
 st.markdown("---")
 
 TOTAL_STEPS = 14
@@ -482,6 +482,7 @@ if step == 1:
         "",
         list(MARKETS.keys()),
         index=list(MARKETS.keys()).index(answers["market"]),
+        key="market_select",
     )
     answers["market"] = market
     market_info = MARKETS[market]
@@ -505,6 +506,7 @@ elif step == 2:
         "",
         ["Yes", "No", "Not sure"],
         index=["Yes", "No", "Not sure"].index(answers["ids"]),
+        key="ids_radio",
     )
     answers["ids"] = ids
 
@@ -525,7 +527,7 @@ elif step == 3:
         default_index = 1
     else:
         default_index = 2
-    choice = st.radio("", options, index=default_index)
+    choice = st.radio("", options, index=default_index, key="omni_radio")
     if choice.startswith("Yes"):
         answers["omnichannel"] = "Yes"
     elif choice.startswith("No"):
@@ -554,6 +556,7 @@ elif step == 4:
             "App installs / app usage",
             "Other / I'm not sure",
         ].index(answers["objective"]),
+        key="objective_radio",
     )
     answers["objective"] = objective
 
@@ -572,6 +575,7 @@ elif step == 5:
         f"(in {market_info['currency_name']}, choose the closest band)",
         budget_labels,
         index=default_index,
+        key="budget_select",
     )
     answers["budget_label"] = budget_label
     answers["budget_level"] = get_budget_level(budget_label)
@@ -587,7 +591,12 @@ elif step == 6:
         default_index = options.index(answers["impressions_label"])
     else:
         default_index = 1
-    impressions_label = st.selectbox("", options, index=default_index)
+    impressions_label = st.selectbox(
+        "",
+        options,
+        index=default_index,
+        key="impressions_select",
+    )
     answers["impressions_label"] = impressions_label
     answers["impressions_level"] = get_impression_level(impressions_label)
     st.caption("Impressions link to density, delivery and the ability to build enough unique reach.")
@@ -599,7 +608,7 @@ elif step == 7:
     )
     options = ["< 1 week", "1–2 weeks", "2–4 weeks", "4+ weeks"]
     default_index = options.index(answers["duration"]) if answers["duration"] in options else 2
-    duration = st.selectbox("", options, index=default_index)
+    duration = st.selectbox("", options, index=default_index, key="duration_select")
     answers["duration"] = duration
     st.caption("Includes bursts of activity if the campaign is not continuous.")
 
@@ -612,6 +621,7 @@ elif step == 8:
         "",
         ["Yes", "No", "Not sure"],
         index=["Yes", "No", "Not sure"].index(answers["offline_data"]),
+        key="offline_radio",
     )
     answers["offline_data"] = offline_data
 
@@ -627,6 +637,7 @@ elif step == 9:
             "Yes – niche/B2B (for example, ultra high net worth, B2B decision makers)",
         ],
         index=0 if answers["niche_audience"] == "No" else 1,
+        key="niche_radio",
     )
     answers["niche_audience"] = "Yes" if niche.startswith("Yes") else "No"
 
@@ -639,6 +650,7 @@ elif step == 10:
         "",
         ["Yes", "No", "Not sure"],
         index=["Yes", "No", "Not sure"].index(answers["other_media"]),
+        key="other_media_radio",
     )
     answers["other_media"] = other_media
     st.caption("Think TV, OOH or big digital bursts from other partners in the same markets and dates.")
@@ -660,6 +672,7 @@ elif step == 11:
             "Average / not tested yet",
             "Weak / poor fit / static banners only",
         ].index(answers["creative"]),
+        key="creative_radio",
     )
     answers["creative"] = creative
 
@@ -680,7 +693,7 @@ elif step == 12:
         default_index = 1
     else:
         default_index = 2
-    choice = st.radio("", options, index=default_index)
+    choice = st.radio("", options, index=default_index, key="bls_timing_radio")
     if choice.startswith("During"):
         answers["bls_timing"] = "During main body of campaign"
     elif choice.startswith("After"):
@@ -705,6 +718,7 @@ elif step == 13:
             "Directional understanding / story is fine",
             "Not sure yet",
         ].index(answers["expectation"]),
+        key="expectation_radio",
     )
     answers["expectation"] = expectation
 
@@ -713,11 +727,15 @@ elif step == 14:
         '<div class="question-heading">Do you want analyst detail (methods, caveats) in the output?</div>',
         unsafe_allow_html=True,
     )
-    show_analyst_view = st.checkbox("", value=answers.get("show_analyst_view", False))
+    show_analyst_view = st.checkbox(
+        "",
+        value=answers.get("show_analyst_view", False),
+        key="analyst_checkbox",
+    )
     answers["show_analyst_view"] = show_analyst_view
 
     st.markdown("---")
-    if st.button("Get measurement recommendation"):
+    if st.button("Get measurement recommendation", key="recommend_button"):
         final_answers = {
             "market": answers["market"],
             "objective": answers["objective"],
@@ -778,7 +796,6 @@ elif step == 14:
         st.markdown("---")
         st.subheader("Email / notes summary")
 
-        # A calm, human, blended summary drawing only on sticky-based logic.
         summary_lines = []
 
         summary_lines.append("Blis Measurement Recommendation")
@@ -831,6 +848,7 @@ elif step == 14:
             "Download summary as .txt",
             data=summary_text,
             file_name="blis_measurement_recommendation.txt",
+            key="download_summary",
         )
 
         st.caption(
@@ -845,7 +863,7 @@ st.markdown("---")
 col1, col2 = st.columns(2)
 with col1:
     if step > 1:
-        st.button("← Back", on_click=go_back)
+        st.button("← Back", on_click=go_back, key="back_button")
 with col2:
     if step < TOTAL_STEPS:
-        st.button("Next →", on_click=go_next)
+        st.button("Next →", on_click=go_next, key="next_button")
