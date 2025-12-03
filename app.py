@@ -852,7 +852,6 @@ import streamlit as st
 # -----------------------------
 # Basic page config & styling
 # -----------------------------
-st.set_page_config(page_title="Blis Measurement Wizard", layout="centered")
 
 st.markdown(
     """
