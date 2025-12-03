@@ -426,7 +426,7 @@ def build_recommendation(answers: dict) -> dict:
 # Wizard state
 # -----------------------------
 st.title("Blis Measurement Wizard")
-st.caption("Internal Blis measurement concierge – designed with love for Sales & Analysts.")
+st.caption("Blis' internal measurement concierge – designed with love.")
 st.markdown("---")
 
 TOTAL_STEPS = 14
